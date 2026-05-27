@@ -165,16 +165,16 @@ def main():
     print("=" * 60)
 
     visualise.fig1_convergence_curves(ga_results, nsga2_results, bo_results, FIG_DIR)
-    print("  ✓ fig1_convergence_curves.png")
+    print("  [OK] fig1_convergence_curves.png")
 
     visualise.fig2_pareto_front_nsga2(nsga2_results, FIG_DIR)
-    print("  ✓ fig2_pareto_front_nsga2.png")
+    print("  [OK] fig2_pareto_front_nsga2.png")
 
     stat_info = visualise.fig3_boxplots_final_quality(ga_results, nsga2_results, bo_results, FIG_DIR)
-    print("  ✓ fig3_boxplots_final_quality.png")
+    print("  [OK] fig3_boxplots_final_quality.png")
 
     visualise.fig4_design_space_scatter(ga_results, nsga2_results, bo_results, FIG_DIR)
-    print("  ✓ fig4_design_space_scatter.png")
+    print("  [OK] fig4_design_space_scatter.png")
 
     # Build radar metrics (normalise 0-1)
     def _norm(vals):
@@ -211,11 +211,11 @@ def main():
         }
 
     visualise.fig5_radar_chart(radar_data, FIG_DIR)
-    print("  ✓ fig5_radar_chart.png")
+    print("  [OK] fig5_radar_chart.png")
 
-    # ──────────────────────────────────────────────────────────
+    # --------------------------------------------------------------
     # Step 6: Save data files
-    # ──────────────────────────────────────────────────────────
+    # --------------------------------------------------------------
     print("\n" + "=" * 60)
     print("Saving data files...")
     print("=" * 60)
@@ -247,7 +247,7 @@ def main():
 
     df = pd.DataFrame(rows)
     df.to_csv(DATA_DIR / 'results_summary.csv', index=False)
-    print("  ✓ results_summary.csv")
+    print("  [OK] results_summary.csv")
 
     # pareto_front_best_run.csv
     best_nsga_idx = 0
@@ -262,7 +262,7 @@ def main():
     pf_df['stiffness_MPa'] = -best_run['pareto_F'][:, 0]
     pf_df['porosity'] = -best_run['pareto_F'][:, 1]
     pf_df.to_csv(DATA_DIR / 'pareto_front_best_run.csv', index=False)
-    print("  ✓ pareto_front_best_run.csv")
+    print("  [OK] pareto_front_best_run.csv")
 
     # statistical_tests.txt
     from scipy import stats as sp_stats
@@ -289,18 +289,18 @@ def main():
 
     lines.append("")
     lines.append("GD/IGD Metrics (NSGA-II):")
-    lines.append(f"  GD:  {gd_igd['gd_mean']:.6f} ± {gd_igd['gd_std']:.6f}")
-    lines.append(f"  IGD: {gd_igd['igd_mean']:.6f} ± {gd_igd['igd_std']:.6f}")
+    lines.append(f"  GD:  {gd_igd['gd_mean']:.6f} +/- {gd_igd['gd_std']:.6f}")
+    lines.append(f"  IGD: {gd_igd['igd_mean']:.6f} +/- {gd_igd['igd_std']:.6f}")
     lines.append("")
-    lines.append(f"Pareto front size: {pf_size['mean']:.1f} ± {pf_size['std']:.1f}")
-    lines.append(f"Final HV (mean ± std): {hv_data['mean'][-1]:.4f} ± {hv_data['std'][-1]:.4f}")
+    lines.append(f"Pareto front size: {pf_size['mean']:.1f} +/- {pf_size['std']:.1f}")
+    lines.append(f"Final HV (mean +/- std): {hv_data['mean'][-1]:.4f} +/- {hv_data['std'][-1]:.4f}")
 
     (DATA_DIR / 'statistical_tests.txt').write_text('\n'.join(lines), encoding='utf-8')
-    print("  ✓ statistical_tests.txt")
+    print("  [OK] statistical_tests.txt")
 
-    # ──────────────────────────────────────────────────────────
+    # --------------------------------------------------------------
     # Step 7: Print summary table
-    # ──────────────────────────────────────────────────────────
+    # --------------------------------------------------------------
     def _mean_finite(lst):
         f = [v for v in lst if np.isfinite(v)]
         return f"{np.mean(f):.0f}" if f else "N/A"
@@ -309,14 +309,14 @@ def main():
     hv_final_std = hv_data['std'][-1] if len(hv_data['std']) > 0 else 0
 
     print("\n")
-    print("┌─────────────────────┬────────────┬────────────┬────────────┐")
-    print("│ Metric              │ Simple GA  │  NSGA-II   │    BO      │")
-    print("├─────────────────────┼────────────┼────────────┼────────────┤")
-    print(f"│ Best stiffness(MPa) │ {ga_stats['mean']:>6.1f}±{ga_stats['std']:<4.1f}│ {nsga_stats['mean']:>6.1f}±{nsga_stats['std']:<4.1f}│ {bo_stats['mean']:>6.1f}±{bo_stats['std']:<4.1f}│")
-    print(f"│ Evals to 90% target │ {_mean_finite(ga_evals_90):>10s} │ {_mean_finite(nsga_evals_90):>10s} │ {_mean_finite(bo_evals_90):>10s} │")
-    print(f"│ Feasibility rate    │ {ga_feas:>9.0f}% │ {nsga_feas:>9.0f}% │ {bo_feas:>9.0f}% │")
-    print(f"│ Final hypervolume   │    N/A     │{hv_final_mean:>6.3f}±{hv_final_std:<4.2f}│    N/A     │")
-    print("└─────────────────────┴────────────┴────────────┴────────────┘")
+    print("+---------------------+------------+------------+------------+")
+    print("| Metric              | Simple GA  |  NSGA-II   |    BO      |")
+    print("+---------------------+------------+------------+------------+")
+    print(f"| Best stiffness(MPa) | {ga_stats['mean']:>6.1f}+/-{ga_stats['std']:<3.1f}| {nsga_stats['mean']:>6.1f}+/-{nsga_stats['std']:<3.1f}| {bo_stats['mean']:>6.1f}+/-{bo_stats['std']:<3.1f}|")
+    print(f"| Evals to 90% target | {_mean_finite(ga_evals_90):>10s} | {_mean_finite(nsga_evals_90):>10s} | {_mean_finite(bo_evals_90):>10s} |")
+    print(f"| Feasibility rate    | {ga_feas:>9.0f}% | {nsga_feas:>9.0f}% | {bo_feas:>9.0f}% |")
+    print(f"| Final hypervolume   |    N/A     |{hv_final_mean:>6.3f}+/-{hv_final_std:<3.2f}|    N/A     |")
+    print("+---------------------+------------+------------+------------+")
     print(f"\nAll results saved to {RESULTS_DIR.resolve()}")
 
 

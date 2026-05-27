@@ -1,0 +1,15 @@
+Statistical Tests Summary
+========================================
+
+Kruskal-Wallis H=48.5980, p=0.000000
+
+  SimpleGA vs NSGA2: U=0.0, p_corrected=0.000000 (***)
+  SimpleGA vs BO: U=368.0, p_corrected=0.000018 (***)
+  NSGA2 vs BO: U=400.0, p_corrected=0.000000 (***)
+
+GD/IGD Metrics (NSGA-II):
+  GD:  2.890361 +/- 0.622831
+  IGD: 2.587175 +/- 0.533559
+
+Pareto front size: 52.8 +/- 6.1
+Final HV (mean +/- std): 30.5304 +/- 0.4059
