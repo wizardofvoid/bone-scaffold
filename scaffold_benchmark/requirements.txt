@@ -1,0 +1,8 @@
+numpy
+scipy
+pymoo
+scikit-optimize
+matplotlib
+pandas
+seaborn
+tqdm
