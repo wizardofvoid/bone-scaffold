@@ -102,7 +102,11 @@ def run_simple_ga(seed):
               best_porosity, is_feasible, final_pop, stiffness_history, seed.
     """
     rng = np.random.default_rng(seed)
-    pop_size, n_gen, elite = 100, 150, 5
+    import os
+    if os.environ.get("SCAFFOLD_USE_ANSYS") == "1":
+        pop_size, n_gen, elite = 20, 10, 2
+    else:
+        pop_size, n_gen, elite = 100, 150, 5
     xl, xu = BOUNDS['xl'], BOUNDS['xu']
 
     pop = rng.uniform(xl, xu, size=(pop_size, 4))

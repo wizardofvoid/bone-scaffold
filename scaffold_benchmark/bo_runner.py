@@ -48,11 +48,19 @@ def run_bo(seed):
     global _current_seed
     _current_seed = seed
 
+    import os
+    if os.environ.get("SCAFFOLD_USE_ANSYS") == "1":
+        n_calls = 30
+        n_random_starts = 5
+    else:
+        n_calls = 150
+        n_random_starts = 20
+
     result = gp_minimize(
         bo_objective,
         _SPACE,
-        n_calls=150,
-        n_random_starts=20,
+        n_calls=n_calls,
+        n_random_starts=n_random_starts,
         acq_func='EI',
         noise=15.0 ** 2,
         random_state=seed,
@@ -77,6 +85,6 @@ def run_bo(seed):
         'best_porosity': float(porosity_score(best_x)),
         'is_feasible': bool(is_feasible(best_x)),
         'seed': seed,
-        'n_evals': 150,
+        'n_evals': n_calls,
         'eval_history': [(i + 1, best_so_far[i]) for i in range(len(best_so_far))],
     }

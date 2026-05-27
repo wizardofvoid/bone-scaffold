@@ -19,7 +19,6 @@ from .problem import compressive_stiffness, porosity_score, is_feasible, BOUNDS
 from . import metrics
 from . import visualise
 
-SEEDS = list(range(20))
 RESULTS_DIR = Path('results')
 FIG_DIR = RESULTS_DIR / 'figures'
 DATA_DIR = RESULTS_DIR / 'data'
@@ -34,12 +33,29 @@ def _run_nsga2_with_ref(args):
         dict: NSGA-II result.
     """
     seed, ref_point = args
-    return run_nsga2(seed, n_gen=150, ref_point=ref_point)
+    n_gen = 10 if os.environ.get("SCAFFOLD_USE_ANSYS") == "1" else 150
+    return run_nsga2(seed, n_gen=n_gen, ref_point=ref_point)
 
 
 def main():
     """Entry point for the full benchmark."""
+    import argparse
     from tqdm.contrib.concurrent import process_map
+
+    parser = argparse.ArgumentParser(description="Run bone scaffold optimization benchmark.")
+    parser.add_argument("--use-ansys", action="store_true", help="Use PyMAPDL structural FEA instead of analytical surrogate.")
+    args = parser.parse_args()
+
+    # Pass the flag to child processes via inherited environment variable
+    if args.use_ansys:
+        os.environ["SCAFFOLD_USE_ANSYS"] = "1"
+        seeds = list(range(3))
+        ref_gen = 10
+        print("[INFO] Running in ANSYS FEA mode (auto-scaled for quick execution).")
+    else:
+        os.environ["SCAFFOLD_USE_ANSYS"] = "0"
+        seeds = list(range(20))
+        ref_gen = 500
 
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -48,37 +64,37 @@ def main():
     max_workers = max(1, (os.cpu_count() or 1) - 1) if use_parallel else 1
 
     # ──────────────────────────────────────────────────────────
-    # Step 0: Reference Pareto front (NSGA-II, 500 gens)
+    # Step 0: Reference Pareto front
     # ──────────────────────────────────────────────────────────
     print("=" * 60)
-    print("Generating NSGA-II reference Pareto front (500 gens)...")
+    print(f"Generating NSGA-II reference Pareto front ({ref_gen} gens)...")
     print("=" * 60)
     t0 = time.time()
-    ref_front = run_nsga2_reference(seed=42, n_gen=500)
+    ref_front = run_nsga2_reference(seed=42, n_gen=ref_gen)
     ref_point = ref_front.max(axis=0) * 1.1 if ref_front.shape[0] > 0 else np.array([0.0, 0.0])
     print(f"  Reference front: {ref_front.shape[0]} points  ({time.time()-t0:.1f}s)")
     print(f"  HV ref point: {ref_point}")
 
     # ──────────────────────────────────────────────────────────
-    # Step 1: Run Simple GA × 20
+    # Step 1: Run Simple GA
     # ──────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
-    print("Running Simple GA (20 seeds)...")
+    print(f"Running Simple GA ({len(seeds)} seeds)...")
     print("=" * 60)
     if use_parallel:
-        ga_results = process_map(run_simple_ga, SEEDS, max_workers=max_workers,
+        ga_results = process_map(run_simple_ga, seeds, max_workers=max_workers,
                                   desc='Simple GA', chunksize=1)
     else:
         from tqdm import tqdm
-        ga_results = [run_simple_ga(s) for s in tqdm(SEEDS, desc='Simple GA')]
+        ga_results = [run_simple_ga(s) for s in tqdm(seeds, desc='Simple GA')]
 
     # ──────────────────────────────────────────────────────────
-    # Step 2: Run NSGA-II × 20
+    # Step 2: Run NSGA-II
     # ──────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
-    print("Running NSGA-II (20 seeds)...")
+    print(f"Running NSGA-II ({len(seeds)} seeds)...")
     print("=" * 60)
-    nsga2_args = [(s, ref_point) for s in SEEDS]
+    nsga2_args = [(s, ref_point) for s in seeds]
     if use_parallel:
         nsga2_results = process_map(_run_nsga2_with_ref, nsga2_args,
                                      max_workers=max_workers, desc='NSGA-II', chunksize=1)
@@ -87,14 +103,15 @@ def main():
         nsga2_results = [_run_nsga2_with_ref(a) for a in tqdm(nsga2_args, desc='NSGA-II')]
 
     # ──────────────────────────────────────────────────────────
-    # Step 3: Run BO × 20
+    # Step 3: Run BO
     # ──────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
-    print("Running Bayesian Optimisation (20 seeds)...")
+    print(f"Running Bayesian Optimisation ({len(seeds)} seeds)...")
     print("=" * 60)
     # BO must run sequentially due to module-level _current_seed
     from tqdm import tqdm
-    bo_results = [run_bo(s) for s in tqdm(SEEDS, desc='BO')]
+    bo_results = [run_bo(s) for s in tqdm(seeds, desc='BO')]
+
 
     # ──────────────────────────────────────────────────────────
     # Step 4: Compute metrics

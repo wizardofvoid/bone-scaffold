@@ -42,7 +42,14 @@ def run_nsga2(seed, n_gen=150, ref_point=None):
     rng = np.random.default_rng(seed)
     problem = ScaffoldProblem(rng=rng)
 
-    algorithm = NSGA2(pop_size=100)
+    import os
+    if os.environ.get("SCAFFOLD_USE_ANSYS") == "1":
+        pop_size = 20
+        n_gen = 10
+    else:
+        pop_size = 100
+
+    algorithm = NSGA2(pop_size=pop_size)
     cb = _HVCallback(ref_point)
 
     res = pymoo_minimize(
@@ -83,7 +90,15 @@ def run_nsga2_reference(seed=42, n_gen=500):
     """
     rng = np.random.default_rng(seed)
     problem = ScaffoldProblem(rng=rng)
-    algorithm = NSGA2(pop_size=100)
+    
+    import os
+    if os.environ.get("SCAFFOLD_USE_ANSYS") == "1":
+        pop_size = 20
+        n_gen = 10
+    else:
+        pop_size = 100
+
+    algorithm = NSGA2(pop_size=pop_size)
 
     res = pymoo_minimize(
         problem, algorithm,

@@ -4,6 +4,8 @@ Surrogate functions, constraints, bounds, and pymoo Problem class.
 """
 
 import numpy as np
+import os
+import math
 
 # Design variable bounds
 BOUNDS = {
@@ -11,24 +13,122 @@ BOUNDS = {
     'xu': np.array([2.0, 5.0, 0.90, 90.0])
 }
 
+# Module-level variables for ANSYS availability tracking
+_ANSYS_AVAILABLE = True
+_ANSYS_WARNING_SHOWN = False
+
+
+def ansys_compressive_stiffness(x):
+    """
+    Runs Finite Element Analysis (FEA) on a single unit cell of the scaffold using PyMAPDL.
+    Calculates equivalent compressive stiffness in MPa.
+    """
+    global _ANSYS_WARNING_SHOWN
+    try:
+        from ansys.mapdl.core import launch_mapdl
+    except ImportError as e:
+        if not _ANSYS_WARNING_SHOWN:
+            print("\n[WARNING] ansys-mapdl-core is not installed. Falling back to Surrogate Model.")
+            _ANSYS_WARNING_SHOWN = True
+        raise e
+
+    mapdl = None
+    try:
+        # Launch MAPDL in batch mode with a quick warning-only log level
+        mapdl = launch_mapdl(loglevel="WARNING")
+        mapdl.clear()
+        
+        # Extract variables
+        t, c, p, a = float(x[0]), float(x[1]), float(x[2]), float(x[3])
+        
+        # Calculate pore radius from target porosity: V_pore = p * c^3 = 4/3 * pi * r_pore^3
+        r_pore = c * ((3.0 * p) / (4.0 * math.pi)) ** (1.0 / 3.0)
+        
+        # Calculate equivalent elastic modulus of bulk cell walls (in MPa)
+        E_base = 3000.0 * ((t / c) ** 0.5) * (1.0 + 0.3 * math.sin(math.radians(a)))
+        
+        # 1. Enter preprocessor
+        mapdl.prep7()
+        
+        # 2. Define Material Properties
+        mapdl.et(1, "SOLID186")       # 20-node structural solid
+        mapdl.mp("EX", 1, E_base)     # Young's Modulus in MPa
+        mapdl.mp("NUXY", 1, 0.3)      # Poisson's ratio
+        
+        # 3. Create Solid Geometry (Unit cell block with spherical pore)
+        v_block = mapdl.block(0, c, 0, c, 0, c)
+        v_sphere = mapdl.sph4(c / 2.0, c / 2.0, c / 2.0, r_pore)
+        
+        # Subtract sphere from block (Volume 1 minus Volume 2)
+        mapdl.vsbv(v_block, v_sphere)
+        
+        # 4. Meshing (coarse mesh size to ensure super-fast solver run times)
+        mapdl.esize(c / 8.0)
+        mapdl.vmesh("ALL")
+        
+        # 5. Boundary Conditions (Compression test)
+        # Fix bottom surface nodes (Z = 0)
+        mapdl.nsel("S", "LOC", "Z", 0.0)
+        mapdl.d("ALL", "ALL", 0.0)
+        
+        # Apply 1% displacement at top surface nodes (Z = c)
+        disp = -0.01 * c
+        mapdl.nsel("S", "LOC", "Z", c)
+        mapdl.d("ALL", "UZ", disp)
+        
+        mapdl.allsel()
+        
+        # 6. Solve static analysis
+        mapdl.run("/SOLU")
+        mapdl.antype("STATIC")
+        mapdl.solve()
+        
+        # 7. Post-Processing: Sum reaction forces at the bottom nodes
+        mapdl.post1()
+        mapdl.nsel("S", "LOC", "Z", 0.0)
+        mapdl.fsum()
+        reaction_force = mapdl.get(0, "FSUM", 0, "FTOT", "Z")
+        
+        # Equivalent compressive stiffness (Elastic Modulus in MPa) E_eff = K * L / A = K * c / c^2 = K / c
+        stiffness = abs(reaction_force / disp) / c
+        
+        # Clean MAPDL shutdown
+        mapdl.exit()
+        return float(stiffness)
+
+    except Exception as e:
+        if mapdl is not None:
+            try:
+                mapdl.exit()
+            except:
+                pass
+        if not _ANSYS_WARNING_SHOWN:
+            print(f"\n[WARNING] Could not run ANSYS FEA: {e}. Falling back to Surrogate Model.")
+            _ANSYS_WARNING_SHOWN = True
+        raise e
+
 
 def compressive_stiffness(x, rng=None):
     """
-    Gibson-Ashby power law approximation for TPMS scaffold stiffness.
-
-    Parameters:
-        x (array-like): [wall_thickness, unit_cell_size, porosity_fraction, strut_angle].
-        rng (np.random.Generator, optional): Seeded RNG for reproducible noise.
-
-    Returns:
-        float: Compressive stiffness in MPa (>= 0).
+    Calculates compressive stiffness.
+    Uses ANSYS FEA if os.environ["SCAFFOLD_USE_ANSYS"] == "1", with a graceful fallback to the
+    Gibson-Ashby surrogate model.
     """
+    global _ANSYS_AVAILABLE
+    if _ANSYS_AVAILABLE and os.environ.get("SCAFFOLD_USE_ANSYS") == "1":
+        try:
+            return ansys_compressive_stiffness(x)
+        except Exception:
+            _ANSYS_AVAILABLE = False  # Mark unavailable to skip future calls and run fast!
+
+    # --- Gibson-Ashby Surrogate Model ---
     t, c, p, a = x[0], x[1], x[2], x[3]
     base = 1200 * ((1 - p) ** 1.8)
     thickness_factor = (t / c) ** 0.5
     angle_factor = 1.0 + 0.3 * np.sin(np.radians(a))
     noise = rng.normal(0, 15) if rng is not None else np.random.normal(0, 15)
     return max(0.0, base * thickness_factor * angle_factor + noise)
+
 
 
 def porosity_score(x):
