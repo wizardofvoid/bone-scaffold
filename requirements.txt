@@ -1,0 +1,9 @@
+numpy
+scipy
+pymoo
+scikit-optimize
+matplotlib
+pandas
+seaborn
+tqdm
+ansys-mapdl-core
